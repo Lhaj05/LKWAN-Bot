@@ -163,6 +163,6 @@ client.on('messageCreate', async (message) => {
 });
 
 // Connexion du bot via le Token d'environnement
-client.login(process.env.TOKEN).catch(err => {
-    console.error("❌ ERREUR DE LOGIN DISCORD :", err);
+client.once('clientReady', () => {
+    console.log(`✅ ${client.user.tag} est connecté et opérationnel !`);
 });
