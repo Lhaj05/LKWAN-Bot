@@ -15,17 +15,15 @@ const PREFIX = '+';
 
 // --- FONCTIONS UTILITAIRES ---
 
-// Récupère ou crée le rôle "Muted" sur le serveur
 async function getOrCreateMutedRole(guild) {
     let mutedRole = guild.roles.cache.find(r => r.name.toLowerCase() === 'muted');
     if (!mutedRole) {
         mutedRole = await guild.roles.create({
             name: 'Muted',
             color: '#818386',
-            reason: 'Rôle Muted automatique pour la modération'
+            reason: 'Rôle Muted automatique'
         });
 
-        // Applique les restrictions sur tous les salons textuels et vocaux
         guild.channels.cache.forEach(async (channel) => {
             await channel.permissionOverwrites.edit(mutedRole, {
                 SendMessages: false,
@@ -37,14 +35,13 @@ async function getOrCreateMutedRole(guild) {
     return mutedRole;
 }
 
-// Récupère le salon pour les logs (cherche "mute-logs" en priorité, sinon "logs")
 function getLogChannel(guild) {
     return guild.channels.cache.find(c => (c.name === 'mute-logs' || c.name === 'logs') && c.isTextBased());
 }
 
-// --- ÉVÉNEMENT READY ---
+// --- EVENEMENT READY ---
 
-client.once('ready', () => {
+client.once('clientReady', () => {
     console.log(`✅ ${client.user.tag} est connecté et opérationnel !`);
 });
 
@@ -56,9 +53,7 @@ client.on('messageCreate', async (message) => {
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
-    // ------------------------------------
     // 1. COMMANDE +MUTE
-    // ------------------------------------
     if (command === 'mute') {
         const targetMember = message.mentions.members.first();
         const durationStr = args[1];
@@ -76,34 +71,27 @@ client.on('messageCreate', async (message) => {
             return message.reply("❌ Durée invalide ! Exemple : `5m` (5 minutes), `1h` (1 heure).");
         }
 
-        // Vérification des permissions
         if (targetMember.permissions.has(PermissionFlagsBits.Administrator) || targetMember.roles.highest.position >= message.guild.members.me.roles.highest.position) {
             return message.reply("🛡️ Impossible de muter un Administrateur ou un membre avec un rôle supérieur !");
         }
 
         try {
-            // A. Ajout du rôle Muted
             const mutedRole = await getOrCreateMutedRole(message.guild);
             await targetMember.roles.add(mutedRole);
 
-            // B. Mute Vocal si le membre est connecté en vocal
             if (targetMember.voice && targetMember.voice.channel) {
                 await targetMember.voice.setMute(true, `Muté par ${message.author.tag}`).catch(() => {});
             }
 
-            // C. Timeout Discord (Textuel)
             await targetMember.timeout(durationMs, `Muté par ${message.author.tag}`).catch(() => {});
 
-            // Confirmation dans le salon textuel
             message.channel.send(`🤐 **${targetMember.user.tag}** a été muté pendant **${durationStr}**.`);
 
-            // Envoi dans le salon de logs (#mute-logs)
             const logChannel = getLogChannel(message.guild);
             if (logChannel) {
                 logChannel.send(`🤐 **MUTE** | **Utilisateur :** ${targetMember.user.tag} | **Durée :** ${durationStr} | **Modérateur :** ${message.author.tag}`);
             }
 
-            // Démute automatique après expiration du délai (Timer)
             setTimeout(async () => {
                 if (targetMember.roles.cache.has(mutedRole.id)) {
                     await targetMember.roles.remove(mutedRole).catch(() => {});
@@ -119,9 +107,7 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    // ------------------------------------
     // 2. COMMANDE +UNMUTE
-    // ------------------------------------
     if (command === 'unmute') {
         const targetMember = message.mentions.members.first();
 
@@ -130,26 +116,21 @@ client.on('messageCreate', async (message) => {
         }
 
         try {
-            // A. Retrait du rôle Muted
             const mutedRole = await getOrCreateMutedRole(message.guild);
             if (targetMember.roles.cache.has(mutedRole.id)) {
                 await targetMember.roles.remove(mutedRole);
             }
 
-            // B. Annulation du Timeout Discord (Textuel)
             if (targetMember.isCommunicationDisabled()) {
                 await targetMember.timeout(null);
             }
 
-            // C. Retrait du Mute Vocal s'il est en salon vocal
             if (targetMember.voice && targetMember.voice.channel) {
                 await targetMember.voice.setMute(false);
             }
 
-            // Confirmation dans le salon textuel
             message.channel.send(`🔊 **${targetMember.user.tag}** a été déminté avec succès !`);
 
-            // Envoi dans le salon de logs (#mute-logs)
             const logChannel = getLogChannel(message.guild);
             if (logChannel) {
                 logChannel.send(`🔊 **UNMUTE** | **Utilisateur :** ${targetMember.user.tag} | **Modérateur :** ${message.author.tag}`);
@@ -157,12 +138,11 @@ client.on('messageCreate', async (message) => {
 
         } catch (error) {
             console.error(error);
-            return message.reply("❌ Impossible de démuter ce membre. Vérifiez les permissions du bot.");
+            return message.reply("❌ Impossible de démuter ce membre.");
         }
     }
 });
 
-// Connexion du bot via le Token d'environnement
-client.once('clientReady', () => {
-    console.log(`✅ ${client.user.tag} est connecté et opérationnel !`);
+client.login(process.env.TOKEN).catch(err => {
+    console.error("❌ ERREUR DE LOGIN DISCORD :", err);
 });
