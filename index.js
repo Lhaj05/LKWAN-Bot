@@ -39,7 +39,7 @@ function getLogChannel(guild) {
     return guild.channels.cache.find(c => (c.name === 'mute-logs' || c.name === 'logs') && c.isTextBased());
 }
 
-// --- EVENEMENT READY ---
+// --- ÉVÉNEMENT READY ---
 
 client.once('clientReady', () => {
     console.log(`✅ ${client.user.tag} est connecté et opérationnel !`);
@@ -53,7 +53,9 @@ client.on('messageCreate', async (message) => {
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
+    // ------------------------------------
     // 1. COMMANDE +MUTE
+    // ------------------------------------
     if (command === 'mute') {
         const targetMember = message.mentions.members.first();
         const durationStr = args[1];
@@ -76,22 +78,25 @@ client.on('messageCreate', async (message) => {
         }
 
         try {
+            // A. Ajout du rôle Muted (bloque l'écriture + le micro via les permissions du rôle)
             const mutedRole = await getOrCreateMutedRole(message.guild);
             await targetMember.roles.add(mutedRole);
 
+            // B. Si le membre est en salon vocal, on lui coupe le micro sur le serveur (Server Mute) sans le kick
             if (targetMember.voice && targetMember.voice.channel) {
                 await targetMember.voice.setMute(true, `Muté par ${message.author.tag}`).catch(() => {});
             }
 
-            await targetMember.timeout(durationMs, `Muté par ${message.author.tag}`).catch(() => {});
-
+            // Message de confirmation dans le tchat
             message.channel.send(`🤐 **${targetMember.user.tag}** a été muté pendant **${durationStr}**.`);
 
+            // Envoi du Log
             const logChannel = getLogChannel(message.guild);
             if (logChannel) {
                 logChannel.send(`🤐 **MUTE** | **Utilisateur :** ${targetMember.user.tag} | **Durée :** ${durationStr} | **Modérateur :** ${message.author.tag}`);
             }
 
+            // C. Timer pour retirer automatiquement le mute à la fin de la durée
             setTimeout(async () => {
                 if (targetMember.roles.cache.has(mutedRole.id)) {
                     await targetMember.roles.remove(mutedRole).catch(() => {});
@@ -107,7 +112,9 @@ client.on('messageCreate', async (message) => {
         }
     }
 
+    // ------------------------------------
     // 2. COMMANDE +UNMUTE
+    // ------------------------------------
     if (command === 'unmute') {
         const targetMember = message.mentions.members.first();
 
@@ -119,10 +126,6 @@ client.on('messageCreate', async (message) => {
             const mutedRole = await getOrCreateMutedRole(message.guild);
             if (targetMember.roles.cache.has(mutedRole.id)) {
                 await targetMember.roles.remove(mutedRole);
-            }
-
-            if (targetMember.isCommunicationDisabled()) {
-                await targetMember.timeout(null);
             }
 
             if (targetMember.voice && targetMember.voice.channel) {
