@@ -131,6 +131,37 @@ client.on('messageCreate', async (message) => {
 
         activeMutes.set(targetMember.id, timer);
     }
+    // COMMANDE +UNMUTE
+    if (command === 'unmute') {
+        const targetMember = message.mentions.members.first();
+
+        if (!targetMember) {
+            return message.reply("❌ Veuillez mentionner un utilisateur à démuter.");
+        }
+
+        try {
+            // Enlève le rôle Muted
+            const mutedRole = await getOrCreateMutedRole(message.guild);
+            if (targetMember.roles.cache.has(mutedRole.id)) {
+                await targetMember.roles.remove(mutedRole);
+            }
+
+            // Enlève le Timeout Discord s'il existe
+            if (targetMember.isCommunicationDisabled()) {
+                await targetMember.timeout(null);
+            }
+
+            // Enlève le Mute vocal s'il est en salon vocal
+            if (targetMember.voice && targetMember.voice.channel) {
+                await targetMember.voice.setMute(false);
+            }
+
+            return message.reply(`🔊 **${targetMember.user.tag}** a été déminté avec succès !`);
+        } catch (error) {
+            console.error(error);
+            return message.reply("❌ Impossible de démuter ce membre.");
+        }
+    }
 
     // COMMANDE +UNMUTE
     if (command === 'unmute') {
